@@ -2,8 +2,11 @@ name: IKEv2 Auto DNS Updater
 
 on:
   schedule:
-    - cron: '*/10 * * * *'  # اجرای خودکار هر ۱۰ دقیقه
-  workflow_dispatch:        # امکان اجرای دستی
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write # دسترسی ذخیره فایل در ریپازیتوری
 
 jobs:
   run-checker:
@@ -25,3 +28,11 @@ jobs:
           CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
           CF_ZONE_ID: ${{ secrets.CF_ZONE_ID }}
         run: python checker.py
+
+      - name: Commit and Push Healthy IPs File
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add healthy_ips.txt
+          git commit -m "Auto update healthy_ips.txt" || exit 0
+          git push
