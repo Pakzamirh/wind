@@ -2,27 +2,34 @@ import os
 import socket
 import requests
 
-# دریافت توکن‌ها از Secrets گیتهاب
 CF_API_TOKEN = os.environ.get("CF_API_TOKEN")
 ZONE_ID = os.environ.get("CF_ZONE_ID")
-
-# تنظیم نام ساب‌دامنه مقصد
 RECORD_NAME = "wind.irantrade.tech"
 
-def check_ikev2(ip, port=500, timeout=1.5):
-    """تست باز بودن پورت UDP 500 برای IKEv2"""
+def check_ikev2(ip, port=500, timeout=2.0):
+    """تست واقعی ارسال و دریافت پکت IKEv2 روی پورت UDP 500"""
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.settimeout(timeout)
-        # ارسال پکت اولیه IKEv2 Header
-        sock.sendto(b'\x00' * 28, (ip, port))
+        
+        # ساخت یک هدر معتبر IKE_SA_INIT جهت دریافت پاسخ از سرور
+        ike_packet = (
+            b'\x01\x02\x03\x04\x05\x06\x07\x08'  # Initiator SPI
+            b'\x00\x00\x00\x00\x00\x00\x00\x00'  # Responder SPI
+            b'\x21\x20\x22\x08'                  # Next Payload, Ver 2.0, Exchange IKE_SA_INIT
+            b'\x00\x00\x00\x00'                  # Message ID
+            b'\x00\x00\x00\x1c'                  # Length 28
+        )
+        
+        sock.sendto(ike_packet, (ip, port))
+        data, _ = sock.recvfrom(1024)  # انتظار برای دریافت پاسخ واقعی از سرور
         sock.close()
-        return True
+        
+        return len(data) > 0
     except Exception:
         return False
 
 def get_record_id(headers):
-    """دریافت ID رکورد DNS فعلی از کلادفلر"""
     url = f"https://api.cloudflare.com/client/v4/zones/{ZONE_ID}/dns_records?name={RECORD_NAME}&type=A"
     try:
         res = requests.get(url, headers=headers).json()
@@ -33,7 +40,6 @@ def get_record_id(headers):
     return None
 
 def update_cloudflare_dns(ip_address):
-    """به‌روزرسانی یا ایجاد رکورد DNS در کلادفلر"""
     headers = {
         "Authorization": f"Bearer {CF_API_TOKEN}",
         "Content-Type": "application/json"
@@ -45,7 +51,7 @@ def update_cloudflare_dns(ip_address):
         "name": RECORD_NAME,
         "content": ip_address,
         "ttl": 1,
-        "proxied": False  # حالت DNS Only (ابر خاکستری)
+        "proxied": False
     }
     
     if record_id:
@@ -60,18 +66,18 @@ def update_cloudflare_dns(ip_address):
     else:
         print(f"[✖] خطا در به‌روزرسانی کلادفلر: {res.get('errors')}")
 
-# شروع اسکن آی‌پی‌های رنج 135.136.0.1 تا 135.136.0.255
+# اسکن رنج آی‌پی
 healthy_ip = None
-print(f"شروع اسکن آی‌پی‌های رنج 135.136.0.1 تا 135.136.0.255 برای دامنه {RECORD_NAME}...")
+print(f"شروع اسکن واقعی آی‌پی‌ها برای {RECORD_NAME}...")
 
 for i in range(1, 256):
     ip = f"135.136.0.{i}"
     if check_ikev2(ip):
-        print(f"[+] آی‌پی سالم پیدا شد: {ip}")
+        print(f"[+] آی‌پی پاسخ‌دهنده و سالم پیدا شد: {ip}")
         healthy_ip = ip
         break
 
 if healthy_ip:
     update_cloudflare_dns(healthy_ip)
 else:
-    print("[-] هیچ آی‌پی سالمی در این رنج پیدا نشد.")
+    print("[-] هیچ آی‌پی پاسخی ارسال نکرد.")
