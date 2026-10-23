@@ -6,6 +6,12 @@ CF_API_TOKEN = os.environ.get("CF_API_TOKEN")
 ZONE_ID = os.environ.get("CF_ZONE_ID")
 RECORD_NAME = "wind.irantrade.tech"
 
+# لیست رنج‌های آی‌پی مورد نظر جهت اسکن
+IP_RANGES = [
+    "135.136.0",
+    "37.120.146"
+]
+
 def check_ikev2(ip, port=500, timeout=1.5):
     """تست واقعی ارسال و دریافت پکت IKEv2 روی پورت UDP 500"""
     try:
@@ -58,26 +64,28 @@ def update_cloudflare_dns(ip_address):
         url = f"https://api.cloudflare.com/client/v4/zones/{ZONE_ID}/dns_records"
         requests.post(url, json=payload, headers=headers)
 
-# اسکن کامل تمام ۲۵۵ آی‌پی
+# اسکن کامل تمام رنج‌ها
 healthy_ips = []
-print(f"شروع اسکن کامل تمام ۲۵۵ آی‌پی برای {RECORD_NAME}...")
+print(f"شروع اسکن آی‌پی‌های رنج‌های مشخص شده برای {RECORD_NAME}...")
 
-for i in range(1, 256):
-    ip = f"135.136.0.{i}"
-    if check_ikev2(ip):
-        print(f"[+] آی‌پی سالم پیدا شد: {ip}")
-        healthy_ips.append(ip)
+for prefix in IP_RANGES:
+    print(f"--- در حال اسکن رنج {prefix}.1 تا {prefix}.255 ---")
+    for i in range(1, 256):
+        ip = f"{prefix}.{i}"
+        if check_ikev2(ip):
+            print(f"[+] آی‌پی سالم پیدا شد: {ip}")
+            healthy_ips.append(ip)
 
 # ۱. ذخیره لیست کامل آی‌پی‌های سالم در فایل متنی
 with open("healthy_ips.txt", "w") as f:
     for ip in healthy_ips:
         f.write(f"{ip}\n")
 
-print(f"تعداد {len(healthy_ips)} آی‌پی سالم در فایل healthy_ips.txt ذخیره شد.")
+print(f"\nدر مجموع {len(healthy_ips)} آی‌پی سالم در فایل healthy_ips.txt ذخیره شد.")
 
 # ۲. آپدیت کلادفلر با اولین آی‌پی سالم لیست
 if healthy_ips:
     update_cloudflare_dns(healthy_ips[0])
     print(f"[✔] دامنه کلادفلر روی {healthy_ips[0]} تنظیم شد.")
 else:
-    print("[-] هیچ آی‌پی پاسخی ارسال نکرد.")
+    print("[-] هیچ آی‌پی سالمی در هیچ‌کدام از رنج‌ها پیدا نشد.")
