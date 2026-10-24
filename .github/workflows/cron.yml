@@ -33,6 +33,7 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add results/
+          git add healthy_ips.txt results/
           git commit -m "Auto update separate domain IP files" || exit 0
+          git pull --rebase
           git push
