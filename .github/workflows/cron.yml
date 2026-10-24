@@ -1,12 +1,12 @@
-name: IKEv2 Auto DNS Updater
+name: IKEv2 Separate Domain Scanner
 
 on:
   schedule:
-    - cron: '*/10 * * * *'
+    - cron: '*/30 * * * *'  # اجرای خودکار هر ۳۰ دقیقه
   workflow_dispatch:
 
 permissions:
-  contents: write # دسترسی ذخیره فایل در ریپازیتوری
+  contents: write
 
 jobs:
   run-checker:
@@ -23,16 +23,16 @@ jobs:
       - name: Install Dependencies
         run: pip install requests
 
-      - name: Run Checker Script
+      - name: Run Domain Checker
         env:
           CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
           CF_ZONE_ID: ${{ secrets.CF_ZONE_ID }}
         run: python checker.py
 
-      - name: Commit and Push Healthy IPs File
+      - name: Commit and Push Separate Results
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add healthy_ips.txt
-          git commit -m "Auto update healthy_ips.txt" || exit 0
+          git add results/
+          git commit -m "Auto update separate domain IP files" || exit 0
           git push
